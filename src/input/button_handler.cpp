@@ -1,11 +1,7 @@
 #include "button_handler.h"
 
-// Static instance pointer for callbacks
-static ButtonHandler* s_instance = nullptr;
-
 ButtonHandler& ButtonHandler::getInstance() {
     static ButtonHandler instance;
-    s_instance = &instance;
     return instance;
 }
 
@@ -35,69 +31,77 @@ bool ButtonHandler::begin(ButtonHandlerCallbacks* callbacks) {
     DEBUG_PRINTLN("Initializing button handler...");
 
     // Initialize Button 1 (Left button)
-    button1 = new ESP32Button(BUTTON_1_PIN, BUTTON_DEBOUNCE_MS, true, true);  // Active LOW, internal pullup
-    if (!button1) {
-        DEBUG_PRINTLN("ERROR: Failed to create Button 1");
+    // ESP32ButtonHandler(pin, activeLow, pullUp, holdThreshold, multiClickThreshold, debounceDelay)
+    button1 = new ESP32ButtonHandler(
+        BUTTON_1_PIN,
+        true,                          // activeLow
+        true,                          // pullUp
+        LONG_PRESS_DURATION_MS,        // holdThreshold (5000ms for long press)
+        250,                           // multiClickThreshold
+        BUTTON_DEBOUNCE_MS             // debounceDelay
+    );
+
+    if (!button1 || !button1->isInitialized()) {
+        DEBUG_PRINTLN("ERROR: Failed to initialize Button 1");
+        if (button1) {
+            delete button1;
+            button1 = nullptr;
+        }
         return false;
     }
 
     // Initialize Button 2 (Right button)
-    button2 = new ESP32Button(BUTTON_2_PIN, BUTTON_DEBOUNCE_MS, true, true);  // Active LOW, internal pullup
-    if (!button2) {
-        DEBUG_PRINTLN("ERROR: Failed to create Button 2");
+    button2 = new ESP32ButtonHandler(
+        BUTTON_2_PIN,
+        true,                          // activeLow
+        true,                          // pullUp
+        LONG_PRESS_DURATION_MS,        // holdThreshold (5000ms for long press)
+        250,                           // multiClickThreshold
+        BUTTON_DEBOUNCE_MS             // debounceDelay
+    );
+
+    if (!button2 || !button2->isInitialized()) {
+        DEBUG_PRINTLN("ERROR: Failed to initialize Button 2");
+        if (button2) {
+            delete button2;
+            button2 = nullptr;
+        }
         delete button1;
         button1 = nullptr;
         return false;
     }
 
-    // Set up callbacks
-    button1->setOnClickCallback(button1ClickCallback);
-    button1->setOnLongPressCallback(button1LongPressCallback, LONG_PRESS_DURATION_MS);
+    // Set up callbacks using lambdas
+    button1->setOnClickCallback([this](ESP32ButtonHandler* handler, int clickCount) {
+        DEBUG_PRINTF("Button 1 clicked (count: %d)\n", clickCount);
+        if (appCallbacks) {
+            appCallbacks->onButton1Click();
+        }
+    });
 
-    button2->setOnClickCallback(button2ClickCallback);
-    button2->setOnLongPressCallback(button2LongPressCallback, LONG_PRESS_DURATION_MS);
+    button1->setOnLongPressStartCallback([this](ESP32ButtonHandler* handler) {
+        DEBUG_PRINTLN("Button 1 long press");
+        if (appCallbacks) {
+            appCallbacks->onButton1LongPress();
+        }
+    });
+
+    button2->setOnClickCallback([this](ESP32ButtonHandler* handler, int clickCount) {
+        DEBUG_PRINTF("Button 2 clicked (count: %d)\n", clickCount);
+        if (appCallbacks) {
+            appCallbacks->onButton2Click();
+        }
+    });
+
+    button2->setOnLongPressStartCallback([this](ESP32ButtonHandler* handler) {
+        DEBUG_PRINTLN("Button 2 long press");
+        if (appCallbacks) {
+            appCallbacks->onButton2LongPress();
+        }
+    });
 
     initialized = true;
     DEBUG_PRINTLN("Button handler initialized successfully");
 
     return true;
-}
-
-void ButtonHandler::update() {
-    if (!initialized) {
-        return;
-    }
-
-    // Update button states
-    button1->update();
-    button2->update();
-}
-
-// Static callback implementations
-void ButtonHandler::button1ClickCallback() {
-    DEBUG_PRINTLN("Button 1 clicked");
-    if (s_instance && s_instance->appCallbacks) {
-        s_instance->appCallbacks->onButton1Click();
-    }
-}
-
-void ButtonHandler::button2ClickCallback() {
-    DEBUG_PRINTLN("Button 2 clicked");
-    if (s_instance && s_instance->appCallbacks) {
-        s_instance->appCallbacks->onButton2Click();
-    }
-}
-
-void ButtonHandler::button1LongPressCallback() {
-    DEBUG_PRINTLN("Button 1 long press");
-    if (s_instance && s_instance->appCallbacks) {
-        s_instance->appCallbacks->onButton1LongPress();
-    }
-}
-
-void ButtonHandler::button2LongPressCallback() {
-    DEBUG_PRINTLN("Button 2 long press");
-    if (s_instance && s_instance->appCallbacks) {
-        s_instance->appCallbacks->onButton2LongPress();
-    }
 }

@@ -70,9 +70,6 @@ public:
     }
 
     void loop() {
-        // Update button states
-        ButtonHandler::getInstance().update();
-
         // Update BLE manager (for pairing mode timeout)
         BLEManager::getInstance().update();
 

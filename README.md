@@ -36,7 +36,7 @@ src/
 ├── ui/
 │   ├── display_manager.h/cpp  # TFT display rendering
 └── input/
-    ├── button_handler.h/cpp   # Button input with ESP32Button library
+    ├── button_handler.h/cpp   # Button input with ESP32ButtonHandler library
 ```
 
 ### Module Responsibilities
@@ -139,7 +139,7 @@ All configuration is in `src/config.h`:
 This project uses the following libraries (automatically managed by PlatformIO):
 
 - **TFT_eSPI**: Display driver for T-Display S3
-- **ESP32Button**: Button handling with debouncing
+- **ESP32ButtonHandler** (yawom/ESP32ButtonHandler): Advanced button handling with FreeRTOS task-based monitoring, multi-click detection, and long-press support
 - **Arduino ESP32**: ESP32 Arduino framework with BLE support
 - **LittleFS**: Built-in file system for ESP32
 

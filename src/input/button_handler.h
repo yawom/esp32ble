@@ -2,7 +2,7 @@
 #define BUTTON_HANDLER_H
 
 #include "../config.h"
-#include <ESP32Button.h>
+#include <ESP32ButtonHandler.h>
 
 // Forward declaration of callback interface
 class ButtonHandlerCallbacks {
@@ -20,9 +20,6 @@ public:
     // Initialize button handling
     bool begin(ButtonHandlerCallbacks* callbacks);
 
-    // Update button states (call in loop)
-    void update();
-
 private:
     ButtonHandler();
     ~ButtonHandler();
@@ -31,16 +28,10 @@ private:
     ButtonHandler(const ButtonHandler&) = delete;
     ButtonHandler& operator=(const ButtonHandler&) = delete;
 
-    ESP32Button* button1;
-    ESP32Button* button2;
+    ESP32ButtonHandler* button1;
+    ESP32ButtonHandler* button2;
     ButtonHandlerCallbacks* appCallbacks;
     bool initialized;
-
-    // Static callback functions (required by ESP32Button)
-    static void button1ClickCallback();
-    static void button2ClickCallback();
-    static void button1LongPressCallback();
-    static void button2LongPressCallback();
 };
 
 #endif // BUTTON_HANDLER_H
