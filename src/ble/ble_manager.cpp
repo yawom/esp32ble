@@ -18,14 +18,19 @@ public:
         std::map<uint16_t, conn_status_t> connections = pServer->getPeerDevices(false);
         if (!connections.empty()) {
             auto it = connections.begin();
-            const uint8_t* addr = it->second.address;
-            memcpy(manager->connectedDeviceMAC, addr, 6);
+            BLEClient* pClient = static_cast<BLEClient*>(it->second.peer_device);
+            if (pClient) {
+                BLEAddress addr = pClient->getPeerAddress();
+                memcpy(manager->connectedDeviceMAC, addr.getNative(), 6);
 
-            DEBUG_PRINTF("Device connected: %02X:%02X:%02X:%02X:%02X:%02X\n",
-                addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
+                DEBUG_PRINTF("Device connected: %02X:%02X:%02X:%02X:%02X:%02X\n",
+                    manager->connectedDeviceMAC[0], manager->connectedDeviceMAC[1],
+                    manager->connectedDeviceMAC[2], manager->connectedDeviceMAC[3],
+                    manager->connectedDeviceMAC[4], manager->connectedDeviceMAC[5]);
 
-            if (manager->appCallbacks) {
-                manager->appCallbacks->onDeviceConnected(manager->connectedDeviceMAC);
+                if (manager->appCallbacks) {
+                    manager->appCallbacks->onDeviceConnected(manager->connectedDeviceMAC);
+                }
             }
         }
     }

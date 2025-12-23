@@ -57,9 +57,9 @@
 // LittleFS mount point
 #define FS_MOUNT_POINT          "/littlefs"
 
-// File paths
-#define DEVICES_FILE_PATH       "/littlefs/devices.dat"
-#define COUNTER_FILE_PATH       "/littlefs/counter.dat"
+// File paths (LittleFS automatically adds mount point)
+#define DEVICES_FILE_PATH       "/devices.dat"
+#define COUNTER_FILE_PATH       "/counter.dat"
 
 // Storage format version (for future compatibility)
 #define STORAGE_FORMAT_VERSION  1
@@ -69,7 +69,7 @@
 // ============================================================================
 
 // Display update interval (milliseconds)
-#define DISPLAY_UPDATE_INTERVAL_MS  100
+#define DISPLAY_UPDATE_INTERVAL_MS  500
 
 // UI Colors (RGB565 format)
 #define COLOR_BACKGROUND        0x0000  // Black

@@ -6,6 +6,7 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
+#include <BLEClient.h>
 
 // Forward declarations
 class BLEManagerCallbacks {

@@ -2,7 +2,7 @@
 #define DISPLAY_MANAGER_H
 
 #include "../config.h"
-#include <TFT_eSPI.h>
+#include "display/board_display.h"
 
 class DisplayManager {
 public:
@@ -26,9 +26,15 @@ private:
     DisplayManager(const DisplayManager&) = delete;
     DisplayManager& operator=(const DisplayManager&) = delete;
 
-    TFT_eSPI* tft;
+    LGFX gfx;
     bool initialized;
     unsigned long lastUpdateTime;
+
+    // Cache last displayed values to avoid unnecessary redraws
+    SystemState lastState;
+    int32_t lastCounterValue;
+    bool lastDeviceNearby;
+    size_t lastRegisteredDeviceCount;
 
     // Screen rendering functions
     void showNormalScreen(int32_t counterValue, bool deviceNearby, size_t registeredDeviceCount);
