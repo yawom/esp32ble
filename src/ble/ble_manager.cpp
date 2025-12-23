@@ -121,40 +121,63 @@ BLEManager::~BLEManager() {
 
 bool BLEManager::begin(BLEManagerCallbacks* callbacks) {
     if (initialized) {
+        DEBUG_PRINTLN("BLE already initialized");
         return true;
     }
 
     appCallbacks = callbacks;
 
-    DEBUG_PRINTLN("Initializing BLE...");
+    DEBUG_PRINTLN("\n====================================");
+    DEBUG_PRINTLN("BLE INITIALIZATION STARTING");
+    DEBUG_PRINTLN("====================================");
 
     // Initialize BLE
+    DEBUG_PRINTF("Initializing BLE device as: %s\n", BLE_DEVICE_NAME);
     BLEDevice::init(BLE_DEVICE_NAME);
 
+    // Print Bluetooth MAC address
+    std::string macAddr = BLEDevice::getAddress().toString();
+    DEBUG_PRINTF("Bluetooth MAC Address: %s\n", macAddr.c_str());
+
     // Create BLE Server
+    DEBUG_PRINTLN("Creating BLE Server...");
     server = BLEDevice::createServer();
     server->setCallbacks(new ServerCallbacks(this));
 
     // Create BLE Service
+    DEBUG_PRINTF("Creating BLE Service with UUID: %s\n", SERVICE_UUID);
     service = server->createService(SERVICE_UUID);
 
     // Setup characteristics
+    DEBUG_PRINTLN("Setting up BLE characteristics...");
     setupCharacteristics();
 
     // Start the service
+    DEBUG_PRINTLN("Starting BLE service...");
     service->start();
+
+    // Mark as initialized BEFORE starting advertising (advertising checks this flag)
+    initialized = true;
 
     // Start advertising
     startAdvertising();
 
-    initialized = true;
-    DEBUG_PRINTLN("BLE initialized successfully");
+    DEBUG_PRINTLN("\n====================================");
+    DEBUG_PRINTLN("BLE INITIALIZATION COMPLETE");
+    DEBUG_PRINTLN("====================================");
+    DEBUG_PRINTLN("Your device should now be visible in:");
+    DEBUG_PRINTLN("  - nRF Connect");
+    DEBUG_PRINTLN("  - LightBlue");
+    DEBUG_PRINTLN("  - BLE Scanner");
+    DEBUG_PRINTF("Look for device name: %s\n", BLE_DEVICE_NAME);
+    DEBUG_PRINTLN("====================================\n");
 
     return true;
 }
 
 void BLEManager::setupCharacteristics() {
-    // Counter characteristic (Read/Write)
+    // Counter characteristic (Read/Write/Notify)
+    DEBUG_PRINTF("  - Counter Characteristic: %s\n", COUNTER_CHAR_UUID);
     counterCharacteristic = service->createCharacteristic(
         COUNTER_CHAR_UUID,
         BLECharacteristic::PROPERTY_READ |
@@ -165,6 +188,7 @@ void BLEManager::setupCharacteristics() {
     counterCharacteristic->setCallbacks(new CounterCharacteristicCallbacks(this));
 
     // Proximity characteristic (Read/Notify)
+    DEBUG_PRINTF("  - Proximity Characteristic: %s\n", PROXIMITY_CHAR_UUID);
     proximityCharacteristic = service->createCharacteristic(
         PROXIMITY_CHAR_UUID,
         BLECharacteristic::PROPERTY_READ |
@@ -173,26 +197,53 @@ void BLEManager::setupCharacteristics() {
     proximityCharacteristic->addDescriptor(new BLE2902());
 
     // Device name characteristic (Read)
+    DEBUG_PRINTF("  - Device Name Characteristic: %s\n", DEVICE_NAME_CHAR_UUID);
     deviceNameCharacteristic = service->createCharacteristic(
         DEVICE_NAME_CHAR_UUID,
         BLECharacteristic::PROPERTY_READ
     );
     deviceNameCharacteristic->setValue(BLE_DEVICE_NAME);
+
+    DEBUG_PRINTLN("All characteristics configured successfully");
 }
 
 void BLEManager::startAdvertising() {
     if (!initialized) {
+        DEBUG_PRINTLN("ERROR: Cannot start advertising - BLE not initialized");
         return;
     }
 
+    DEBUG_PRINTLN("\n=== Starting BLE Advertising ===");
+
     BLEAdvertising* advertising = BLEDevice::getAdvertising();
+
+    // Add service UUID to advertising data
     advertising->addServiceUUID(SERVICE_UUID);
+    DEBUG_PRINTF("Service UUID: %s\n", SERVICE_UUID);
+
+    // Enable scan response for device name
     advertising->setScanResponse(true);
-    advertising->setMinPreferred(0x06);  // Functions that help with iPhone connections
-    advertising->setMinPreferred(0x12);
+
+    // Set advertising parameters for better iOS compatibility
+    advertising->setMinPreferred(0x06);  // Minimum connection interval
+    advertising->setMaxPreferred(0x12);  // Maximum connection interval (was duplicate setMinPreferred)
+
+    // Set advertising interval (in 0.625ms units, so 160 = 100ms)
+    advertising->setMinInterval(160);
+    advertising->setMaxInterval(160);
+
+    // Explicitly set device as connectable and discoverable
+    advertising->setAdvertisementType(ADV_TYPE_IND);
 
     BLEDevice::startAdvertising();
-    DEBUG_PRINTLN("BLE advertising started");
+
+    DEBUG_PRINTLN("BLE Advertising Configuration:");
+    DEBUG_PRINTF("  Device Name: %s\n", BLE_DEVICE_NAME);
+    DEBUG_PRINTF("  Service UUID: %s\n", SERVICE_UUID);
+    DEBUG_PRINTLN("  Scan Response: Enabled");
+    DEBUG_PRINTLN("  Advertisement Type: Connectable & Discoverable (ADV_IND)");
+    DEBUG_PRINTLN("  Status: ACTIVE");
+    DEBUG_PRINTLN("================================\n");
 }
 
 void BLEManager::stopAdvertising() {

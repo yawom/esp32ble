@@ -142,7 +142,8 @@ public:
             CounterApp::getInstance().getValue(),
             CounterApp::getInstance().isConnectedDeviceNearby(),
             BLEManager::getInstance().getPairingPassword(),
-            CounterApp::getInstance().getRegisteredDeviceCount()
+            CounterApp::getInstance().getRegisteredDeviceCount(),
+            BLEManager::getInstance().isDeviceConnected()
         );
 
         // Small delay to prevent tight loop

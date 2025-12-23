@@ -8,13 +8,11 @@
 // ============================================================================
 
 // Display pins (for TFT_eSPI library)
-#define TFT_WIDTH       170
-#define TFT_HEIGHT      320
-#define TFT_ROTATION    1  // Landscape mode
+#define TFT_ROTATION    0  // Portrait mode
 
 // Button pins
-#define BUTTON_1_PIN    0   // Left button - Increment/Pairing mode
-#define BUTTON_2_PIN    14  // Right button - Decrement/Clear devices
+#define BUTTON_1_PIN    14  // Left button - Increment/Pairing mode
+#define BUTTON_2_PIN    0   // Right button - Decrement/Clear devices
 
 // Future gate relay control
 #define GATE_RELAY_PIN  21  // GPIO for gate control (not used in initial demo)
@@ -24,7 +22,7 @@
 // ============================================================================
 
 #define BUTTON_DEBOUNCE_MS      50
-#define LONG_PRESS_DURATION_MS  5000  // 5 seconds for pairing mode / clear
+#define LONG_PRESS_DURATION_MS  3000  // 3 seconds for pairing mode / clear
 
 // ============================================================================
 // BLE CONFIGURATION

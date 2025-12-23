@@ -13,7 +13,8 @@ DisplayManager::DisplayManager()
     , lastState(SystemState::INITIALIZING)
     , lastCounterValue(0)
     , lastDeviceNearby(false)
-    , lastRegisteredDeviceCount(0) {
+    , lastRegisteredDeviceCount(0)
+    , lastBleConnected(false) {
 }
 
 DisplayManager::~DisplayManager() {
@@ -50,7 +51,7 @@ bool DisplayManager::begin() {
 }
 
 void DisplayManager::update(SystemState state, int32_t counterValue, bool deviceNearby,
-                           const char* pairingPassword, size_t registeredDeviceCount) {
+                           const char* pairingPassword, size_t registeredDeviceCount, bool bleConnected) {
     if (!initialized) {
         return;
     }
@@ -59,7 +60,8 @@ void DisplayManager::update(SystemState state, int32_t counterValue, bool device
     bool stateChanged = (state != lastState);
     bool valuesChanged = (counterValue != lastCounterValue ||
                          deviceNearby != lastDeviceNearby ||
-                         registeredDeviceCount != lastRegisteredDeviceCount);
+                         registeredDeviceCount != lastRegisteredDeviceCount ||
+                         bleConnected != lastBleConnected);
 
     // Only update if something changed or enough time has passed
     unsigned long currentTime = millis();
@@ -74,7 +76,14 @@ void DisplayManager::update(SystemState state, int32_t counterValue, bool device
     lastCounterValue = counterValue;
     lastDeviceNearby = deviceNearby;
     lastRegisteredDeviceCount = registeredDeviceCount;
+    lastBleConnected = bleConnected;
     lastUpdateTime = currentTime;
+
+    // If BLE is connected, show connected screen regardless of state (except pairing mode)
+    if (bleConnected && state != SystemState::PAIRING_MODE) {
+        showConnectedScreen(counterValue);
+        return;
+    }
 
     // Render based on state
     switch (state) {
@@ -83,7 +92,7 @@ void DisplayManager::update(SystemState state, int32_t counterValue, bool device
             break;
 
         case SystemState::NORMAL:
-            showNormalScreen(counterValue, deviceNearby, registeredDeviceCount);
+            showNormalScreen(counterValue, deviceNearby, registeredDeviceCount, bleConnected);
             break;
 
         case SystemState::PAIRING_MODE:
@@ -102,16 +111,20 @@ void DisplayManager::clear() {
     }
 
     gfx.fillScreen(COLOR_BACKGROUND);
+
+    // Draw frame around screen to visualize boundaries
+    gfx.drawRect(0, 0, gfx.width(), gfx.height(), COLOR_ACCENT);
+    gfx.drawRect(1, 1, gfx.width() - 2, gfx.height() - 2, COLOR_ACCENT);
 }
 
-void DisplayManager::showNormalScreen(int32_t counterValue, bool deviceNearby, size_t registeredDeviceCount) {
+void DisplayManager::showNormalScreen(int32_t counterValue, bool deviceNearby, size_t registeredDeviceCount, bool bleConnected) {
     clear();
 
     // Header
     drawHeader("ESP32 Access Control", COLOR_ACCENT);
 
     // Status bar
-    drawStatusBar(deviceNearby, registeredDeviceCount);
+    drawStatusBar(deviceNearby, registeredDeviceCount, bleConnected);
 
     // Counter value (large, centered)
     gfx.setTextSize(FONT_SIZE_XLARGE);
@@ -135,6 +148,53 @@ void DisplayManager::showNormalScreen(int32_t counterValue, bool deviceNearby, s
     gfx.print(label);
 
     // Instructions
+}
+
+void DisplayManager::showConnectedScreen(int32_t counterValue) {
+    clear();
+
+    // Header with success color
+    drawHeader("BLE CONNECTED", COLOR_SUCCESS);
+
+    // Large connected icon (using text)
+    gfx.setTextSize(FONT_SIZE_XLARGE);
+    gfx.setTextColor(COLOR_SUCCESS, COLOR_BACKGROUND);
+
+    String icon = "OK";
+    int textWidth = icon.length() * 24;
+    int x = (gfx.width() - textWidth) / 2;
+    int y = 50;
+
+    gfx.setCursor(x, y);
+    gfx.print(icon);
+
+    // Counter value
+    gfx.setTextSize(FONT_SIZE_LARGE);
+    gfx.setTextColor(COLOR_TEXT_PRIMARY, COLOR_BACKGROUND);
+
+    String counterStr = "Count: " + String(counterValue);
+    textWidth = counterStr.length() * 18;
+    x = (gfx.width() - textWidth) / 2;
+    y = 100;
+
+    gfx.setCursor(x, y);
+    gfx.print(counterStr);
+
+    // Instructions
+    gfx.setTextSize(FONT_SIZE_SMALL);
+    gfx.setTextColor(COLOR_TEXT_SECONDARY, COLOR_BACKGROUND);
+
+    String inst1 = "Device is connected";
+    textWidth = inst1.length() * 6;
+    x = (gfx.width() - textWidth) / 2;
+    gfx.setCursor(x, 140);
+    gfx.print(inst1);
+
+    String inst2 = "Use app to control";
+    textWidth = inst2.length() * 6;
+    x = (gfx.width() - textWidth) / 2;
+    gfx.setCursor(x, 155);
+    gfx.print(inst2);
 }
 
 void DisplayManager::showPairingScreen(const char* password) {
@@ -174,7 +234,7 @@ void DisplayManager::showPairingScreen(const char* password) {
     // Timeout info
     gfx.setTextSize(FONT_SIZE_SMALL);
     gfx.setTextColor(COLOR_TEXT_SECONDARY, COLOR_BACKGROUND);
-    gfx.setCursor(10, gfx.height() - 15);
+    gfx.setCursor(10, gfx.height() - 05);
     gfx.print("Timeout: 60 seconds");
 }
 
@@ -241,26 +301,40 @@ void DisplayManager::drawHeader(const char* title, uint16_t color) {
     gfx.print(title);
 }
 
-void DisplayManager::drawStatusBar(bool deviceNearby, size_t registeredDeviceCount) {
+void DisplayManager::drawStatusBar(bool deviceNearby, size_t registeredDeviceCount, bool bleConnected) {
     int y = 40;
 
-    // Device nearby indicator
+    // BLE connection status (left side)
     gfx.setTextSize(FONT_SIZE_SMALL);
-    if (deviceNearby) {
+    if (bleConnected) {
         gfx.setTextColor(COLOR_SUCCESS, COLOR_BACKGROUND);
         gfx.setCursor(10, y);
-        gfx.print("Device: NEARBY");
+        gfx.print("BLE: CONNECTED");
     } else {
         gfx.setTextColor(COLOR_TEXT_SECONDARY, COLOR_BACKGROUND);
         gfx.setCursor(10, y);
-        gfx.print("Device: ---");
+        gfx.print("BLE: Waiting...");
     }
 
-    // Registered devices count
+    // Registered devices count (right side)
     gfx.setTextColor(COLOR_TEXT_SECONDARY, COLOR_BACKGROUND);
     gfx.setCursor(gfx.width() - 80, y);
     gfx.print("Reg: ");
     gfx.print(registeredDeviceCount);
     gfx.print("/");
     gfx.print(MAX_REGISTERED_DEVICES);
+
+    // Device nearby indicator (second line)
+    if (bleConnected) {
+        y += 15;
+        if (deviceNearby) {
+            gfx.setTextColor(COLOR_SUCCESS, COLOR_BACKGROUND);
+            gfx.setCursor(10, y);
+            gfx.print("Proximity: NEARBY");
+        } else {
+            gfx.setTextColor(COLOR_TEXT_SECONDARY, COLOR_BACKGROUND);
+            gfx.setCursor(10, y);
+            gfx.print("Proximity: Far");
+        }
+    }
 }

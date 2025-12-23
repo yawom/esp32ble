@@ -13,7 +13,8 @@ public:
 
     // Update display based on system state
     void update(SystemState state, int32_t counterValue, bool deviceNearby,
-                const char* pairingPassword = nullptr, size_t registeredDeviceCount = 0);
+                const char* pairingPassword = nullptr, size_t registeredDeviceCount = 0,
+                bool bleConnected = false);
 
     // Clear the display
     void clear();
@@ -35,16 +36,18 @@ private:
     int32_t lastCounterValue;
     bool lastDeviceNearby;
     size_t lastRegisteredDeviceCount;
+    bool lastBleConnected;
 
     // Screen rendering functions
-    void showNormalScreen(int32_t counterValue, bool deviceNearby, size_t registeredDeviceCount);
+    void showNormalScreen(int32_t counterValue, bool deviceNearby, size_t registeredDeviceCount, bool bleConnected);
     void showPairingScreen(const char* password);
     void showInitializingScreen();
     void showErrorScreen();
+    void showConnectedScreen(int32_t counterValue);
 
     // Helper functions
     void drawHeader(const char* title, uint16_t color);
-    void drawStatusBar(bool deviceNearby, size_t registeredDeviceCount);
+    void drawStatusBar(bool deviceNearby, size_t registeredDeviceCount, bool bleConnected);
 };
 
 #endif // DISPLAY_MANAGER_H
