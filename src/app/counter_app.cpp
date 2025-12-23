@@ -32,7 +32,7 @@ void CounterApp::increment() {
     counterValue++;
     DEBUG_PRINTF("Counter incremented to: %d\n", counterValue);
 
-    saveCounter();
+    // saveCounter();  // Disabled - don't persist to avoid BLE task stack overflow
 
     // Notify BLE clients
     BLEManager::getInstance().updateCounterValue(counterValue);
@@ -42,7 +42,7 @@ void CounterApp::decrement() {
     counterValue--;
     DEBUG_PRINTF("Counter decremented to: %d\n", counterValue);
 
-    saveCounter();
+    // saveCounter();  // Disabled - don't persist to avoid BLE task stack overflow
 
     // Notify BLE clients
     BLEManager::getInstance().updateCounterValue(counterValue);
@@ -52,7 +52,7 @@ void CounterApp::setValue(int32_t value) {
     counterValue = value;
     DEBUG_PRINTF("Counter set to: %d\n", counterValue);
 
-    saveCounter();
+    // saveCounter();  // Disabled - don't persist to avoid BLE task stack overflow
 
     // Notify BLE clients
     BLEManager::getInstance().updateCounterValue(counterValue);
