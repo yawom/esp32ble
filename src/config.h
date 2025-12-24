@@ -7,10 +7,8 @@
 // HARDWARE CONFIGURATION - Lilygo T-Display S3
 // ============================================================================
 
-// Display pins (for TFT_eSPI library)
-#define TFT_WIDTH       170
-#define TFT_HEIGHT      320
-#define TFT_ROTATION    1  // Landscape mode
+// Display configuration (for TFT_eSPI library)
+#define TFT_ROTATION    1  // Landscape mode (0=portrait, 1=landscape)
 
 // Button pins
 #define BUTTON_1_PIN    0   // Left button - Increment/Pairing mode
