@@ -3,14 +3,14 @@
 
 #include "../config.h"
 #include "../ble/ble_manager.h"
-#include "../storage/storage_manager.h"
+#include "config/IConfig.h"
 
 class CounterApp : public BLEManagerCallbacks {
 public:
     static CounterApp& getInstance();
 
-    // Initialize the counter app
-    bool begin();
+    // Initialize the counter app (requires config to be passed)
+    bool begin(IConfig* config);
 
     // Counter operations
     void increment();
@@ -49,6 +49,7 @@ private:
     bool deviceNearby;
     RegisteredDevice registeredDevices[MAX_REGISTERED_DEVICES];
     size_t registeredDeviceCount;
+    IConfig* config;
 
     // Helper functions
     void saveCounter();

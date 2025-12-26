@@ -2,20 +2,7 @@
 #define CONFIG_H
 
 #include <Arduino.h>
-
-// ============================================================================
-// HARDWARE CONFIGURATION - Lilygo T-Display S3
-// ============================================================================
-
-// Display pins (for TFT_eSPI library)
-#define TFT_ROTATION    0  // Portrait mode
-
-// Button pins
-#define BUTTON_1_PIN    14  // Left button - Increment/Pairing mode
-#define BUTTON_2_PIN    0   // Right button - Decrement/Clear devices
-
-// Future gate relay control
-#define GATE_RELAY_PIN  21  // GPIO for gate control (not used in initial demo)
+#include "boards/BoardProfiles.h"
 
 // ============================================================================
 // BUTTON CONFIGURATION
@@ -29,7 +16,7 @@
 // ============================================================================
 
 // Device name
-#define BLE_DEVICE_NAME         "ESP32-Access"
+#define BLE_DEVICE_NAME         "ESP32-BLE-DEMO"
 
 // Service UUID (custom service)
 #define SERVICE_UUID            "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
@@ -49,18 +36,12 @@
 #define MAX_REGISTERED_DEVICES  10
 
 // ============================================================================
-// STORAGE CONFIGURATION
+// STORAGE CONFIGURATION (using framework's LittleFSConfig)
 // ============================================================================
 
-// LittleFS mount point
-#define FS_MOUNT_POINT          "/littlefs"
-
-// File paths (LittleFS automatically adds mount point)
-#define DEVICES_FILE_PATH       "/devices.dat"
-#define COUNTER_FILE_PATH       "/counter.dat"
-
-// Storage format version (for future compatibility)
-#define STORAGE_FORMAT_VERSION  1
+// Config keys for storage
+#define CONFIG_COUNTER_VALUE    "counter.value"
+#define CONFIG_DEVICES_PREFIX   "devices"
 
 // ============================================================================
 // DISPLAY CONFIGURATION
@@ -68,21 +49,6 @@
 
 // Display update interval (milliseconds)
 #define DISPLAY_UPDATE_INTERVAL_MS  500
-
-// UI Colors (RGB565 format)
-#define COLOR_BACKGROUND        0x0000  // Black
-#define COLOR_TEXT_PRIMARY      0xFFFF  // White
-#define COLOR_TEXT_SECONDARY    0x7BEF  // Light gray
-#define COLOR_ACCENT            0x07FF  // Cyan
-#define COLOR_WARNING           0xFD20  // Orange
-#define COLOR_ERROR             0xF800  // Red
-#define COLOR_SUCCESS           0x07E0  // Green
-
-// Font sizes
-#define FONT_SIZE_SMALL         1
-#define FONT_SIZE_MEDIUM        2
-#define FONT_SIZE_LARGE         3
-#define FONT_SIZE_XLARGE        4
 
 // ============================================================================
 // SYSTEM STATE CONFIGURATION
@@ -108,22 +74,5 @@ struct RegisteredDevice {
         memset(macAddress, 0, 6);
     }
 };
-
-// ============================================================================
-// DEBUG CONFIGURATION
-// ============================================================================
-
-#define SERIAL_BAUD_RATE        115200
-#define ENABLE_DEBUG_LOGGING    true
-
-#if ENABLE_DEBUG_LOGGING
-    #define DEBUG_PRINT(x)      Serial.print(x)
-    #define DEBUG_PRINTLN(x)    Serial.println(x)
-    #define DEBUG_PRINTF(...)   Serial.printf(__VA_ARGS__)
-#else
-    #define DEBUG_PRINT(x)
-    #define DEBUG_PRINTLN(x)
-    #define DEBUG_PRINTF(...)
-#endif
 
 #endif // CONFIG_H

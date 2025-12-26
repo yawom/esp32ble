@@ -1,0 +1,3 @@
+[submodule "ESP32Framework"]
+	path = ESP32Framework
+	url = git@github.com:yawom/ESP32Framework.git

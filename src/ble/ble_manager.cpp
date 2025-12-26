@@ -1,4 +1,5 @@
 #include "ble_manager.h"
+#include "logger/Logger.h"
 
 // ============================================================================
 // Server Callbacks
@@ -23,7 +24,7 @@ public:
                 BLEAddress addr = pClient->getPeerAddress();
                 memcpy(manager->connectedDeviceMAC, addr.getNative(), 6);
 
-                DEBUG_PRINTF("Device connected: %02X:%02X:%02X:%02X:%02X:%02X\n",
+                logger->log("Device connected: %02X:%02X:%02X:%02X:%02X:%02X",
                     manager->connectedDeviceMAC[0], manager->connectedDeviceMAC[1],
                     manager->connectedDeviceMAC[2], manager->connectedDeviceMAC[3],
                     manager->connectedDeviceMAC[4], manager->connectedDeviceMAC[5]);
@@ -37,7 +38,7 @@ public:
 
     void onDisconnect(BLEServer* pServer) override {
         manager->deviceConnected = false;
-        DEBUG_PRINTLN("Device disconnected");
+        logger->log("Device disconnected");
 
         if (manager->appCallbacks) {
             manager->appCallbacks->onDeviceDisconnected();
@@ -67,7 +68,7 @@ public:
 
             // Update the characteristic with current value
             pCharacteristic->setValue(value);
-            DEBUG_PRINTF("Counter read: %d\n", value);
+            logger->log("Counter read: %d", value);
         }
     }
 
@@ -78,13 +79,13 @@ public:
             int32_t counterValue;
             memcpy(&counterValue, value.data(), sizeof(int32_t));
 
-            DEBUG_PRINTF("Counter written: %d\n", counterValue);
+            logger->log("Counter written: %d", counterValue);
 
             if (manager->appCallbacks) {
                 manager->appCallbacks->onCounterWrite(counterValue);
             }
         } else {
-            DEBUG_PRINTLN("WARNING: Invalid counter write size");
+            logger->log("WARNING: Invalid counter write size");
         }
     }
 };
@@ -121,39 +122,39 @@ BLEManager::~BLEManager() {
 
 bool BLEManager::begin(BLEManagerCallbacks* callbacks) {
     if (initialized) {
-        DEBUG_PRINTLN("BLE already initialized");
+        logger->log("BLE already initialized");
         return true;
     }
 
     appCallbacks = callbacks;
 
-    DEBUG_PRINTLN("\n====================================");
-    DEBUG_PRINTLN("BLE INITIALIZATION STARTING");
-    DEBUG_PRINTLN("====================================");
+    logger->log("\n====================================");
+    logger->log("BLE INITIALIZATION STARTING");
+    logger->log("====================================");
 
     // Initialize BLE
-    DEBUG_PRINTF("Initializing BLE device as: %s\n", BLE_DEVICE_NAME);
+    logger->log("Initializing BLE device as: %s", BLE_DEVICE_NAME);
     BLEDevice::init(BLE_DEVICE_NAME);
 
     // Print Bluetooth MAC address
     std::string macAddr = BLEDevice::getAddress().toString();
-    DEBUG_PRINTF("Bluetooth MAC Address: %s\n", macAddr.c_str());
+    logger->log("Bluetooth MAC Address: %s", macAddr.c_str());
 
     // Create BLE Server
-    DEBUG_PRINTLN("Creating BLE Server...");
+    logger->log("Creating BLE Server...");
     server = BLEDevice::createServer();
     server->setCallbacks(new ServerCallbacks(this));
 
     // Create BLE Service
-    DEBUG_PRINTF("Creating BLE Service with UUID: %s\n", SERVICE_UUID);
+    logger->log("Creating BLE Service with UUID: %s", SERVICE_UUID);
     service = server->createService(SERVICE_UUID);
 
     // Setup characteristics
-    DEBUG_PRINTLN("Setting up BLE characteristics...");
+    logger->log("Setting up BLE characteristics...");
     setupCharacteristics();
 
     // Start the service
-    DEBUG_PRINTLN("Starting BLE service...");
+    logger->log("Starting BLE service...");
     service->start();
 
     // Mark as initialized BEFORE starting advertising (advertising checks this flag)
@@ -162,22 +163,18 @@ bool BLEManager::begin(BLEManagerCallbacks* callbacks) {
     // Start advertising
     startAdvertising();
 
-    DEBUG_PRINTLN("\n====================================");
-    DEBUG_PRINTLN("BLE INITIALIZATION COMPLETE");
-    DEBUG_PRINTLN("====================================");
-    DEBUG_PRINTLN("Your device should now be visible in:");
-    DEBUG_PRINTLN("  - nRF Connect");
-    DEBUG_PRINTLN("  - LightBlue");
-    DEBUG_PRINTLN("  - BLE Scanner");
-    DEBUG_PRINTF("Look for device name: %s\n", BLE_DEVICE_NAME);
-    DEBUG_PRINTLN("====================================\n");
+    logger->log("\n====================================");
+    logger->log("BLE INITIALIZATION COMPLETE");
+    logger->log("====================================");
+    logger->log("Device visible as: %s", BLE_DEVICE_NAME);
+    logger->log("====================================\n");
 
     return true;
 }
 
 void BLEManager::setupCharacteristics() {
     // Counter characteristic (Read/Write/Notify)
-    DEBUG_PRINTF("  - Counter Characteristic: %s\n", COUNTER_CHAR_UUID);
+    logger->log("  - Counter Characteristic: %s", COUNTER_CHAR_UUID);
     counterCharacteristic = service->createCharacteristic(
         COUNTER_CHAR_UUID,
         BLECharacteristic::PROPERTY_READ |
@@ -188,7 +185,7 @@ void BLEManager::setupCharacteristics() {
     counterCharacteristic->setCallbacks(new CounterCharacteristicCallbacks(this));
 
     // Proximity characteristic (Read/Notify)
-    DEBUG_PRINTF("  - Proximity Characteristic: %s\n", PROXIMITY_CHAR_UUID);
+    logger->log("  - Proximity Characteristic: %s", PROXIMITY_CHAR_UUID);
     proximityCharacteristic = service->createCharacteristic(
         PROXIMITY_CHAR_UUID,
         BLECharacteristic::PROPERTY_READ |
@@ -197,29 +194,29 @@ void BLEManager::setupCharacteristics() {
     proximityCharacteristic->addDescriptor(new BLE2902());
 
     // Device name characteristic (Read)
-    DEBUG_PRINTF("  - Device Name Characteristic: %s\n", DEVICE_NAME_CHAR_UUID);
+    logger->log("  - Device Name Characteristic: %s", DEVICE_NAME_CHAR_UUID);
     deviceNameCharacteristic = service->createCharacteristic(
         DEVICE_NAME_CHAR_UUID,
         BLECharacteristic::PROPERTY_READ
     );
     deviceNameCharacteristic->setValue(BLE_DEVICE_NAME);
 
-    DEBUG_PRINTLN("All characteristics configured successfully");
+    logger->log("All characteristics configured successfully");
 }
 
 void BLEManager::startAdvertising() {
     if (!initialized) {
-        DEBUG_PRINTLN("ERROR: Cannot start advertising - BLE not initialized");
+        logger->log("ERROR: Cannot start advertising - BLE not initialized");
         return;
     }
 
-    DEBUG_PRINTLN("\n=== Starting BLE Advertising ===");
+    logger->log("\n=== Starting BLE Advertising ===");
 
     BLEAdvertising* advertising = BLEDevice::getAdvertising();
 
     // Add service UUID to advertising data
     advertising->addServiceUUID(SERVICE_UUID);
-    DEBUG_PRINTF("Service UUID: %s\n", SERVICE_UUID);
+    logger->log("Service UUID: %s", SERVICE_UUID);
 
     // Enable scan response for device name
     advertising->setScanResponse(true);
@@ -237,13 +234,13 @@ void BLEManager::startAdvertising() {
 
     BLEDevice::startAdvertising();
 
-    DEBUG_PRINTLN("BLE Advertising Configuration:");
-    DEBUG_PRINTF("  Device Name: %s\n", BLE_DEVICE_NAME);
-    DEBUG_PRINTF("  Service UUID: %s\n", SERVICE_UUID);
-    DEBUG_PRINTLN("  Scan Response: Enabled");
-    DEBUG_PRINTLN("  Advertisement Type: Connectable & Discoverable (ADV_IND)");
-    DEBUG_PRINTLN("  Status: ACTIVE");
-    DEBUG_PRINTLN("================================\n");
+    logger->log("BLE Advertising Configuration:");
+    logger->log("  Device Name: %s", BLE_DEVICE_NAME);
+    logger->log("  Service UUID: %s", SERVICE_UUID);
+    logger->log("  Scan Response: Enabled");
+    logger->log("  Advertisement Type: Connectable & Discoverable (ADV_IND)");
+    logger->log("  Status: ACTIVE");
+    logger->log("================================\n");
 }
 
 void BLEManager::stopAdvertising() {
@@ -252,7 +249,7 @@ void BLEManager::stopAdvertising() {
     }
 
     BLEDevice::stopAdvertising();
-    DEBUG_PRINTLN("BLE advertising stopped");
+    logger->log("BLE advertising stopped");
 }
 
 void BLEManager::enterPairingMode() {
@@ -260,14 +257,14 @@ void BLEManager::enterPairingMode() {
     pairingModeStartTime = millis();
     generatePairingPassword();
 
-    DEBUG_PRINTF("Entered pairing mode with password: %s\n", pairingPassword);
+    logger->log("Entered pairing mode with password: %s", pairingPassword);
 }
 
 void BLEManager::exitPairingMode() {
     pairingMode = false;
     memset(pairingPassword, 0, sizeof(pairingPassword));
 
-    DEBUG_PRINTLN("Exited pairing mode");
+    logger->log("Exited pairing mode");
 }
 
 void BLEManager::generatePairingPassword() {
@@ -327,7 +324,7 @@ void BLEManager::update() {
     // Check pairing mode timeout
     if (pairingMode) {
         if (millis() - pairingModeStartTime >= PAIRING_MODE_TIMEOUT_MS) {
-            DEBUG_PRINTLN("Pairing mode timeout");
+            logger->log("Pairing mode timeout");
             exitPairingMode();
         }
     }
