@@ -1,16 +1,7 @@
 #ifndef BLE_APP_H
 #define BLE_APP_H
 
-#include <Arduino.h>
-#include "config/IConfig.h"
-#include "config/LittleFSConfig.h"
-#include "logger/Logger.h"
-#include "logger/SerialSink.h"
-#include "boards/BoardProfiles.h"
-
-#if HAS_DISPLAY
-#include "display/Display.h"
-#endif
+#include "app/ApplicationBase.h"
 
 #if HAS_BUTTONS
 #include "input/ButtonHandler.h"
@@ -22,33 +13,25 @@
 
 /**
  * BLE Application for ESP32
- * Simplified app without WiFi/MQTT, focused on BLE
+ * Inherits from ApplicationBase for WiFi, MQTT, and time sync infrastructure
  */
-class BLEApp {
+class BLEApp : public ApplicationBase {
 public:
-    BLEApp(Logger* logger);
+    BLEApp();
     virtual ~BLEApp();
 
-    /**
-     * Setup the application - call this from Arduino setup()
-     */
-    void setup();
+protected:
+    // ApplicationBase lifecycle hooks (override)
+    void onSetup() override;
+    void onLoop() override;
+    void onStateUpdate(AppState currentState) override;
+    const char* getWiFiAPName() override;
 
-    /**
-     * Main application loop - call this from Arduino loop()
-     */
-    void run();
-
-private:
-    // Core components
-    Logger* logger;
-    SerialSink serialSink;
-    IConfig* config;
-
-#if HAS_DISPLAY
-    Display* display;
+#if HAS_BUTTONS
+    void onAlwaysLoop() override;
 #endif
 
+private:
 #if HAS_BUTTONS
     ButtonHandler* button1;
     ButtonHandler* button2;
@@ -59,9 +42,6 @@ private:
     unsigned long lastDisplayUpdate;
 
     // Setup helpers
-    void setupLogger();
-    void setupConfig();
-    void setupDisplay();
     void setupButtons();
     void setupBLE();
 

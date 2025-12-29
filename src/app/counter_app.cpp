@@ -10,14 +10,20 @@ CounterApp::CounterApp()
     : counterValue(0)
     , deviceNearby(false)
     , registeredDeviceCount(0)
-    , config(nullptr) {
+    , config(nullptr)
+    , logger(nullptr) {
     memset(registeredDevices, 0, sizeof(registeredDevices));
 }
 
 CounterApp::~CounterApp() {
 }
 
-bool CounterApp::begin(IConfig* cfg) {
+bool CounterApp::begin(IConfig* cfg, Logger* log) {
+    if (!log) {
+        return false;
+    }
+
+    logger = log;
     logger->log("Initializing Counter App...");
 
     if (!cfg) {
@@ -27,7 +33,6 @@ bool CounterApp::begin(IConfig* cfg) {
 
     config = cfg;
 
-    // Load persisted data
     loadCounter();
     loadDevices();
 
@@ -41,9 +46,6 @@ void CounterApp::increment() {
     counterValue++;
     logger->log("Counter incremented to: %d", counterValue);
 
-    // saveCounter();  // Disabled - don't persist to avoid BLE task stack overflow
-
-    // Notify BLE clients
     BLEManager::getInstance().updateCounterValue(counterValue);
 }
 
@@ -51,9 +53,6 @@ void CounterApp::decrement() {
     counterValue--;
     logger->log("Counter decremented to: %d", counterValue);
 
-    // saveCounter();  // Disabled - don't persist to avoid BLE task stack overflow
-
-    // Notify BLE clients
     BLEManager::getInstance().updateCounterValue(counterValue);
 }
 
@@ -61,14 +60,10 @@ void CounterApp::setValue(int32_t value) {
     counterValue = value;
     logger->log("Counter set to: %d", counterValue);
 
-    // saveCounter();  // Disabled - don't persist to avoid BLE task stack overflow
-
-    // Notify BLE clients
     BLEManager::getInstance().updateCounterValue(counterValue);
 }
 
 void CounterApp::registerDevice(uint8_t* macAddress) {
-    // Check if device is already registered
     for (size_t i = 0; i < registeredDeviceCount; i++) {
         if (registeredDevices[i].isValid &&
             memcmp(registeredDevices[i].macAddress, macAddress, 6) == 0) {
@@ -77,7 +72,6 @@ void CounterApp::registerDevice(uint8_t* macAddress) {
         }
     }
 
-    // Find a free slot
     if (registeredDeviceCount < MAX_REGISTERED_DEVICES) {
         registeredDevices[registeredDeviceCount].isValid = true;
         memcpy(registeredDevices[registeredDeviceCount].macAddress, macAddress, 6);
@@ -88,7 +82,6 @@ void CounterApp::registerDevice(uint8_t* macAddress) {
             macAddress[0], macAddress[1], macAddress[2],
             macAddress[3], macAddress[4], macAddress[5]);
 
-        saveDevices();
     } else {
         logger->log("ERROR: Maximum number of registered devices reached");
     }
@@ -96,6 +89,8 @@ void CounterApp::registerDevice(uint8_t* macAddress) {
 
 void CounterApp::clearAllDevices() {
     logger->log("Clearing all registered devices");
+
+    BLEManager::getInstance().clearAllBonds();
 
     memset(registeredDevices, 0, sizeof(registeredDevices));
     registeredDeviceCount = 0;
@@ -107,6 +102,8 @@ void CounterApp::clearAllDevices() {
         config->setBool(key, false);
     }
     config->save();
+
+    logger->log("All devices and BLE bonds cleared");
 }
 
 bool CounterApp::isDeviceRegistered(uint8_t* macAddress) {
@@ -120,19 +117,31 @@ bool CounterApp::isDeviceRegistered(uint8_t* macAddress) {
 }
 
 void CounterApp::onDeviceConnected(uint8_t* macAddress) {
-    deviceNearby = true;
-
     logger->log("Device connected callback: %02X:%02X:%02X:%02X:%02X:%02X",
         macAddress[0], macAddress[1], macAddress[2],
         macAddress[3], macAddress[4], macAddress[5]);
 
-    // Update proximity status
-    BLEManager::getInstance().updateProximityStatus(true);
-
-    // If in pairing mode, register the device
+    // If in pairing mode, register the device and allow connection
     if (BLEManager::getInstance().isInPairingMode()) {
         registerDevice(macAddress);
+        deviceNearby = true;
+        BLEManager::getInstance().updateProximityStatus(true);
+        logger->log("Device registered and connected (pairing mode)");
+        return;
     }
+
+    // Check if device is authorized (registered)
+    if (!isDeviceRegistered(macAddress)) {
+        logger->log("UNAUTHORIZED: Device not registered");
+        // Don't allow proximity status or operations
+        // The device will be rejected at the characteristic level
+        return;
+    }
+
+    // Device is authorized
+    deviceNearby = true;
+    BLEManager::getInstance().updateProximityStatus(true);
+    logger->log("Authorized device connected");
 }
 
 void CounterApp::onDeviceDisconnected() {
@@ -144,13 +153,37 @@ void CounterApp::onDeviceDisconnected() {
 }
 
 void CounterApp::onCounterRead(int32_t& value) {
+    // Verify authorization
+    uint8_t macAddress[6];
+    BLEManager::getInstance().getConnectedDeviceMAC(macAddress);
+
+    if (!BLEManager::getInstance().isInPairingMode() && !isDeviceRegistered(macAddress)) {
+        logger->log("UNAUTHORIZED: Read attempt from unregistered device");
+        value = 0;
+        return;
+    }
+
     value = counterValue;
     logger->log("Counter read via BLE: %d", value);
 }
 
 void CounterApp::onCounterWrite(int32_t value) {
+    // Verify authorization
+    uint8_t macAddress[6];
+    BLEManager::getInstance().getConnectedDeviceMAC(macAddress);
+
+    if (!BLEManager::getInstance().isInPairingMode() && !isDeviceRegistered(macAddress)) {
+        logger->log("UNAUTHORIZED: Write attempt from unregistered device");
+        return;
+    }
+
     logger->log("Counter write via BLE: %d", value);
     setValue(value);
+}
+
+void CounterApp::onPairingModeExit() {
+    logger->log("Pairing mode exited - saving registered devices");
+    saveDevices();
 }
 
 void CounterApp::saveCounter() {

@@ -1,5 +1,6 @@
 #include "ble_manager.h"
 #include "logger/Logger.h"
+#include <esp_gap_ble_api.h>
 
 // ============================================================================
 // Server Callbacks
@@ -13,9 +14,7 @@ public:
     ServerCallbacks(BLEManager* mgr) : manager(mgr) {}
 
     void onConnect(BLEServer* pServer) override {
-        manager->deviceConnected = true;
-
-        // Get connected device MAC address
+        // Get connected device MAC address first
         std::map<uint16_t, conn_status_t> connections = pServer->getPeerDevices(false);
         if (!connections.empty()) {
             auto it = connections.begin();
@@ -24,10 +23,13 @@ public:
                 BLEAddress addr = pClient->getPeerAddress();
                 memcpy(manager->connectedDeviceMAC, addr.getNative(), 6);
 
-                logger->log("Device connected: %02X:%02X:%02X:%02X:%02X:%02X",
+                manager->logger->log("Device attempting connection: %02X:%02X:%02X:%02X:%02X:%02X",
                     manager->connectedDeviceMAC[0], manager->connectedDeviceMAC[1],
                     manager->connectedDeviceMAC[2], manager->connectedDeviceMAC[3],
                     manager->connectedDeviceMAC[4], manager->connectedDeviceMAC[5]);
+
+                // Mark as connected and notify the app
+                manager->deviceConnected = true;
 
                 if (manager->appCallbacks) {
                     manager->appCallbacks->onDeviceConnected(manager->connectedDeviceMAC);
@@ -38,7 +40,7 @@ public:
 
     void onDisconnect(BLEServer* pServer) override {
         manager->deviceConnected = false;
-        logger->log("Device disconnected");
+        manager->logger->log("Device disconnected");
 
         if (manager->appCallbacks) {
             manager->appCallbacks->onDeviceDisconnected();
@@ -62,30 +64,42 @@ public:
     CounterCharacteristicCallbacks(BLEManager* mgr) : manager(mgr) {}
 
     void onRead(BLECharacteristic* pCharacteristic) override {
+        // Check if device is connected
+        if (!manager->deviceConnected) {
+            manager->logger->log("WARNING: Counter read attempted with no device connected");
+            return;
+        }
+
         if (manager->appCallbacks) {
             int32_t value = 0;
             manager->appCallbacks->onCounterRead(value);
 
             // Update the characteristic with current value
             pCharacteristic->setValue(value);
-            logger->log("Counter read: %d", value);
+            manager->logger->log("Counter read: %d", value);
         }
     }
 
     void onWrite(BLECharacteristic* pCharacteristic) override {
+        // Check if device is connected
+        if (!manager->deviceConnected) {
+            manager->logger->log("WARNING: Counter write attempted with no device connected");
+            return;
+        }
+
         std::string value = pCharacteristic->getValue();
 
         if (value.length() == sizeof(int32_t)) {
             int32_t counterValue;
             memcpy(&counterValue, value.data(), sizeof(int32_t));
 
-            logger->log("Counter written: %d", counterValue);
+            manager->logger->log("Counter written: %d", counterValue);
 
             if (manager->appCallbacks) {
                 manager->appCallbacks->onCounterWrite(counterValue);
             }
         } else {
-            logger->log("WARNING: Invalid counter write size");
+            manager->logger->log("WARNING: Invalid counter write size");
         }
     }
 };
@@ -109,7 +123,8 @@ BLEManager::BLEManager()
     , deviceConnected(false)
     , pairingMode(false)
     , pairingModeStartTime(0)
-    , appCallbacks(nullptr) {
+    , appCallbacks(nullptr)
+    , logger(nullptr) {
     memset(pairingPassword, 0, sizeof(pairingPassword));
     memset(connectedDeviceMAC, 0, sizeof(connectedDeviceMAC));
 }
@@ -120,7 +135,13 @@ BLEManager::~BLEManager() {
     }
 }
 
-bool BLEManager::begin(BLEManagerCallbacks* callbacks) {
+bool BLEManager::begin(BLEManagerCallbacks* callbacks, Logger* log) {
+    if (!log) {
+        return false;
+    }
+
+    logger = log;
+
     if (initialized) {
         logger->log("BLE already initialized");
         return true;
@@ -265,6 +286,11 @@ void BLEManager::exitPairingMode() {
     memset(pairingPassword, 0, sizeof(pairingPassword));
 
     logger->log("Exited pairing mode");
+
+    // Notify callback that pairing mode ended (so it can save devices)
+    if (appCallbacks) {
+        appCallbacks->onPairingModeExit();
+    }
 }
 
 void BLEManager::generatePairingPassword() {
@@ -277,6 +303,20 @@ void BLEManager::generatePairingPassword() {
 
 void BLEManager::getConnectedDeviceMAC(uint8_t* macAddress) {
     memcpy(macAddress, connectedDeviceMAC, 6);
+}
+
+void BLEManager::disconnectDevice() {
+    if (!initialized || !server) {
+        return;
+    }
+
+    logger->log("Disconnecting device...");
+
+    // Get all connected peers and disconnect them
+    std::map<uint16_t, conn_status_t> connections = server->getPeerDevices(false);
+    for (auto& conn : connections) {
+        server->disconnect(conn.first);
+    }
 }
 
 void BLEManager::updateProximityStatus(bool isNearby) {
@@ -318,6 +358,33 @@ bool BLEManager::isDeviceAuthorized(uint8_t* macAddress, const RegisteredDevice 
     }
 
     return false;
+}
+
+void BLEManager::clearAllBonds() {
+    if (!initialized) {
+        return;
+    }
+
+    logger->log("Clearing all BLE bonds...");
+
+    // Remove all bonded devices from ESP32's security database
+    int deviceCount = esp_ble_get_bond_device_num();
+    if (deviceCount > 0) {
+        esp_ble_bond_dev_t* bondedDevices = (esp_ble_bond_dev_t*)malloc(sizeof(esp_ble_bond_dev_t) * deviceCount);
+        if (bondedDevices) {
+            esp_ble_get_bond_device_list(&deviceCount, bondedDevices);
+            for (int i = 0; i < deviceCount; i++) {
+                esp_ble_remove_bond_device(bondedDevices[i].bd_addr);
+                logger->log("Removed bond: %02X:%02X:%02X:%02X:%02X:%02X",
+                    bondedDevices[i].bd_addr[0], bondedDevices[i].bd_addr[1],
+                    bondedDevices[i].bd_addr[2], bondedDevices[i].bd_addr[3],
+                    bondedDevices[i].bd_addr[4], bondedDevices[i].bd_addr[5]);
+            }
+            free(bondedDevices);
+        }
+    }
+
+    logger->log("All BLE bonds cleared");
 }
 
 void BLEManager::update() {

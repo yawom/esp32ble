@@ -1,11 +1,7 @@
 #include "ble_app.h"
 
-BLEApp::BLEApp(Logger *logger)
-    : logger(logger)
-    , config(nullptr)
-#if HAS_DISPLAY
-    , display(nullptr)
-#endif
+BLEApp::BLEApp()
+    : ApplicationBase("ESP32-BLE-Demo", "1.0.0")
 #if HAS_BUTTONS
     , button1(nullptr)
     , button2(nullptr)
@@ -19,21 +15,32 @@ BLEApp::~BLEApp() {
     if (button1) delete button1;
     if (button2) delete button2;
 #endif
-#if HAS_DISPLAY
-    if (display) delete display;
-#endif
-    if (config) delete config;
-    if (logger) delete logger;
 }
 
-void BLEApp::setup() {
-    setupLogger();
-    setupConfig();
-    setupDisplay();
+// ============================================================================
+// ApplicationBase Lifecycle Hooks
+// ============================================================================
+
+const char* BLEApp::getWiFiAPName() {
+    return "ESP32-BLE-SETUP";
+}
+
+void BLEApp::onSetup() {
+    logger->log("BLEApp::onSetup() called");
+    logger->log("Config pointer: %p", config);
+
     setupButtons();
 
-    // Initialize counter app
-    if (!CounterApp::getInstance().begin(config)) {
+    // Verify config is valid before proceeding
+    if (!config) {
+        logger->log("FATAL: Config is null - cannot initialize");
+        currentState = SystemState::ERROR;
+        return;
+    }
+
+    logger->log("Config is valid, initializing CounterApp");
+
+    if (!CounterApp::getInstance().begin(config, &Logger::getInstance())) {
         logger->log("FATAL: Counter app initialization failed");
         currentState = SystemState::ERROR;
         return;
@@ -41,67 +48,41 @@ void BLEApp::setup() {
 
     setupBLE();
 
-    // All systems initialized
     currentState = SystemState::NORMAL;
-    logger->log("System initialized successfully!");
+    logger->log("BLE app initialized successfully!");
 }
 
-void BLEApp::run() {
-    // Update BLE manager (for pairing mode timeout)
+void BLEApp::onStateUpdate(AppState state) {
+    if (state == AppState::MQTT_CONNECT) {
+        logger->log("Skipping MQTT - transitioning to RUNNING state");
+        ApplicationBase::currentState = AppState::RUNNING;
+    }
+}
+
+void BLEApp::onLoop() {
     BLEManager::getInstance().update();
 
-    // Update current state based on BLE manager
     if (BLEManager::getInstance().isInPairingMode()) {
         currentState = SystemState::PAIRING_MODE;
     } else if (currentState == SystemState::PAIRING_MODE) {
-        // Just exited pairing mode
         currentState = SystemState::NORMAL;
     }
 
-    // Update display periodically
     unsigned long now = millis();
     if (now - lastDisplayUpdate >= DISPLAY_UPDATE_INTERVAL_MS) {
         lastDisplayUpdate = now;
         updateDisplay();
     }
-
-    // Small delay to prevent tight loop
-    delay(10);
 }
 
-void BLEApp::setupLogger() {
-    // Serial sink is already added in main.cpp setup()
-    logger->log("\n\n====================================");
-    logger->log("ESP32 BLE Access Control Demo");
-    logger->log("====================================\n");
+#if HAS_BUTTONS
+void BLEApp::onAlwaysLoop() {
 }
-
-void BLEApp::setupConfig() {
-    logger->log("Initializing configuration...");
-    config = new LittleFSConfig(logger);
-    config->load();
-}
-
-void BLEApp::setupDisplay() {
-#if HAS_DISPLAY
-    logger->log("Initializing display...");
-    display = new Display();
-    if (!display->setup()) {
-        logger->log("FATAL: Display initialization failed");
-        currentState = SystemState::ERROR;
-        return;
-    }
-
-    // Show initializing screen
-    display->clearDisplay(TFT_BLACK);
-    display->getGfx().setTextColor(TFT_WHITE);
-    display->getGfx().setTextSize(2);
-    display->getGfx().setCursor(10, LCD_HEIGHT / 2 - 10);
-    display->getGfx().print("Initializing...");
-#else
-    logger->log("No display available");
 #endif
-}
+
+// ============================================================================
+// Setup Helpers
+// ============================================================================
 
 void BLEApp::setupButtons() {
 #if HAS_BUTTONS
@@ -109,6 +90,12 @@ void BLEApp::setupButtons() {
 
     button1 = new ButtonHandler(PIN_BUTTON_1, true, true, LONG_PRESS_DURATION_MS, 250, BUTTON_DEBOUNCE_MS);
     button1->setOnClickCallback([this](int pinNumber, int clickCount) {
+        if (BLEManager::getInstance().isInPairingMode()) {
+            logger->log("Button 1 clicked - Exit pairing mode");
+            BLEManager::getInstance().exitPairingMode();
+            return;
+        }
+
         logger->log("Button 1 clicked (count: %d)", clickCount);
         CounterApp::getInstance().decrement();
     });
@@ -121,6 +108,12 @@ void BLEApp::setupButtons() {
 
     button2 = new ButtonHandler(PIN_BUTTON_2, true, true, LONG_PRESS_DURATION_MS, 250, BUTTON_DEBOUNCE_MS);
     button2->setOnClickCallback([this](int pinNumber, int clickCount) {
+        if (BLEManager::getInstance().isInPairingMode()) {
+            logger->log("Button 2 clicked - Exit pairing mode");
+            BLEManager::getInstance().exitPairingMode();
+            return;
+        }
+
         logger->log("Button 2 clicked (count: %d)", clickCount);
         CounterApp::getInstance().increment();
     });
@@ -139,12 +132,16 @@ void BLEApp::setupButtons() {
 
 void BLEApp::setupBLE() {
     logger->log("Initializing BLE...");
-    if (!BLEManager::getInstance().begin(&CounterApp::getInstance())) {
+    if (!BLEManager::getInstance().begin(&CounterApp::getInstance(), &Logger::getInstance())) {
         logger->log("FATAL: BLE initialization failed");
         currentState = SystemState::ERROR;
         return;
     }
 }
+
+// ============================================================================
+// Display Update
+// ============================================================================
 
 void BLEApp::updateDisplay() {
 #if HAS_DISPLAY

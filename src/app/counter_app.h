@@ -4,13 +4,13 @@
 #include "../config.h"
 #include "../ble/ble_manager.h"
 #include "config/IConfig.h"
+#include "logger/Logger.h"
 
 class CounterApp : public BLEManagerCallbacks {
 public:
     static CounterApp& getInstance();
 
-    // Initialize the counter app (requires config to be passed)
-    bool begin(IConfig* config);
+    bool begin(IConfig* config, Logger* log);
 
     // Counter operations
     void increment();
@@ -32,6 +32,7 @@ public:
     void onDeviceDisconnected() override;
     void onCounterRead(int32_t& value) override;
     void onCounterWrite(int32_t value) override;
+    void onPairingModeExit() override;
 
     // Proximity detection
     bool isConnectedDeviceNearby() const { return deviceNearby; }
@@ -44,12 +45,12 @@ private:
     CounterApp(const CounterApp&) = delete;
     CounterApp& operator=(const CounterApp&) = delete;
 
-    // State
     int32_t counterValue;
     bool deviceNearby;
     RegisteredDevice registeredDevices[MAX_REGISTERED_DEVICES];
     size_t registeredDeviceCount;
     IConfig* config;
+    Logger* logger;
 
     // Helper functions
     void saveCounter();

@@ -7,6 +7,7 @@
 #include <BLEUtils.h>
 #include <BLE2902.h>
 #include <BLEClient.h>
+#include "logger/Logger.h"
 
 // Forward declarations
 class BLEManagerCallbacks {
@@ -15,6 +16,7 @@ public:
     virtual void onDeviceDisconnected() = 0;
     virtual void onCounterRead(int32_t& value) = 0;
     virtual void onCounterWrite(int32_t value) = 0;
+    virtual void onPairingModeExit() = 0;
 };
 
 class BLEManager {
@@ -22,7 +24,7 @@ public:
     static BLEManager& getInstance();
 
     // Initialize BLE stack
-    bool begin(BLEManagerCallbacks* callbacks);
+    bool begin(BLEManagerCallbacks* callbacks, Logger* log);
 
     // Start/stop advertising
     void startAdvertising();
@@ -37,6 +39,7 @@ public:
     // Connection status
     bool isDeviceConnected() const { return deviceConnected; }
     void getConnectedDeviceMAC(uint8_t* macAddress);
+    void disconnectDevice();
 
     // Update characteristics
     void updateProximityStatus(bool isNearby);
@@ -44,6 +47,9 @@ public:
 
     // Check if device is authorized (registered)
     bool isDeviceAuthorized(uint8_t* macAddress, const RegisteredDevice devices[], size_t count);
+
+    // Clear all BLE bonding information
+    void clearAllBonds();
 
     // Loop update (for pairing mode timeout)
     void update();
@@ -73,6 +79,9 @@ private:
 
     // Callbacks
     BLEManagerCallbacks* appCallbacks;
+
+    // Logger
+    Logger* logger;
 
     // Helper functions
     void generatePairingPassword();
