@@ -23,11 +23,6 @@ public:
                 BLEAddress addr = pClient->getPeerAddress();
                 memcpy(manager->connectedDeviceMAC, addr.getNative(), 6);
 
-                manager->logger->log("Device attempting connection: %02X:%02X:%02X:%02X:%02X:%02X",
-                    manager->connectedDeviceMAC[0], manager->connectedDeviceMAC[1],
-                    manager->connectedDeviceMAC[2], manager->connectedDeviceMAC[3],
-                    manager->connectedDeviceMAC[4], manager->connectedDeviceMAC[5]);
-
                 // Mark as connected and notify the app
                 manager->deviceConnected = true;
 
@@ -40,7 +35,6 @@ public:
 
     void onDisconnect(BLEServer* pServer) override {
         manager->deviceConnected = false;
-        manager->logger->log("Device disconnected");
 
         if (manager->appCallbacks) {
             manager->appCallbacks->onDeviceDisconnected();
@@ -66,7 +60,6 @@ public:
     void onRead(BLECharacteristic* pCharacteristic) override {
         // Check if device is connected
         if (!manager->deviceConnected) {
-            manager->logger->log("WARNING: Counter read attempted with no device connected");
             return;
         }
 
@@ -76,14 +69,12 @@ public:
 
             // Update the characteristic with current value
             pCharacteristic->setValue(value);
-            manager->logger->log("Counter read: %d", value);
         }
     }
 
     void onWrite(BLECharacteristic* pCharacteristic) override {
         // Check if device is connected
         if (!manager->deviceConnected) {
-            manager->logger->log("WARNING: Counter write attempted with no device connected");
             return;
         }
 
@@ -93,13 +84,9 @@ public:
             int32_t counterValue;
             memcpy(&counterValue, value.data(), sizeof(int32_t));
 
-            manager->logger->log("Counter written: %d", counterValue);
-
             if (manager->appCallbacks) {
                 manager->appCallbacks->onCounterWrite(counterValue);
             }
-        } else {
-            manager->logger->log("WARNING: Invalid counter write size");
         }
     }
 };

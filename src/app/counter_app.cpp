@@ -44,22 +44,16 @@ bool CounterApp::begin(IConfig* cfg, Logger* log) {
 
 void CounterApp::increment() {
     counterValue++;
-    logger->log("Counter incremented to: %d", counterValue);
-
     BLEManager::getInstance().updateCounterValue(counterValue);
 }
 
 void CounterApp::decrement() {
     counterValue--;
-    logger->log("Counter decremented to: %d", counterValue);
-
     BLEManager::getInstance().updateCounterValue(counterValue);
 }
 
 void CounterApp::setValue(int32_t value) {
     counterValue = value;
-    logger->log("Counter set to: %d", counterValue);
-
     BLEManager::getInstance().updateCounterValue(counterValue);
 }
 

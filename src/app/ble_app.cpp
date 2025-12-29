@@ -6,8 +6,10 @@ BLEApp::BLEApp()
     , button1(nullptr)
     , button2(nullptr)
 #endif
-    , currentState(SystemState::INITIALIZING)
-    , lastDisplayUpdate(0) {
+#if HAS_DISPLAY
+    , counterModule(nullptr)
+#endif
+    , currentState(SystemState::INITIALIZING) {
 }
 
 BLEApp::~BLEApp() {
@@ -25,8 +27,11 @@ const char* BLEApp::getWiFiAPName() {
     return "ESP32-BLE-SETUP";
 }
 
-void BLEApp::onSetup() {
+const char* BLEApp::getSystemTitle() {
+    return "BLE Counter";
+}
 
+void BLEApp::onSetup() {
     setupButtons();
 
     if (!config) {
@@ -45,13 +50,35 @@ void BLEApp::onSetup() {
 
     setupBLE();
 
+#if HAS_DISPLAY
+    int systemModuleHeight = 30;
+    int32_t startX = 0;
+    int32_t startY = systemModuleHeight;
+    int32_t width = display->getWidth();
+    int32_t height = display->getHeight() - systemModuleHeight;
+
+    counterModule = new CounterModule(logger);
+    if (!moduleManager->registerModule(counterModule, startX, startY, width, height)) {
+        logger->log("ERROR: Failed to register CounterModule");
+        currentState = SystemState::ERROR;
+        return;
+    }
+
+    if (!moduleManager->startAllModules()) {
+        logger->log("ERROR: Failed to start all modules");
+        currentState = SystemState::ERROR;
+        return;
+    }
+
+    logger->log("CounterModule registered and started");
+#endif
+
     currentState = SystemState::NORMAL;
     logger->log("BLE app initialized successfully!");
 }
 
 void BLEApp::onStateUpdate(AppState state) {
     if (state == AppState::MQTT_CONNECT) {
-        logger->log("Skipping MQTT - transitioning to RUNNING state");
         ApplicationBase::currentState = AppState::RUNNING;
     }
 }
@@ -63,12 +90,6 @@ void BLEApp::onLoop() {
         currentState = SystemState::PAIRING_MODE;
     } else if (currentState == SystemState::PAIRING_MODE) {
         currentState = SystemState::NORMAL;
-    }
-
-    unsigned long now = millis();
-    if (now - lastDisplayUpdate >= DISPLAY_UPDATE_INTERVAL_MS) {
-        lastDisplayUpdate = now;
-        updateDisplay();
     }
 }
 
@@ -88,12 +109,10 @@ void BLEApp::setupButtons() {
     button1 = new ButtonHandler(PIN_BUTTON_1, true, true, LONG_PRESS_DURATION_MS, 250, BUTTON_DEBOUNCE_MS);
     button1->setOnClickCallback([this](int pinNumber, int clickCount) {
         if (BLEManager::getInstance().isInPairingMode()) {
-            logger->log("Button 1 clicked - Exit pairing mode");
             BLEManager::getInstance().exitPairingMode();
             return;
         }
 
-        logger->log("Button 1 clicked (count: %d)", clickCount);
         CounterApp::getInstance().decrement();
     });
     button1->setOnLongPressStartCallback([this](int pinNumber) {
@@ -106,12 +125,10 @@ void BLEApp::setupButtons() {
     button2 = new ButtonHandler(PIN_BUTTON_2, true, true, LONG_PRESS_DURATION_MS, 250, BUTTON_DEBOUNCE_MS);
     button2->setOnClickCallback([this](int pinNumber, int clickCount) {
         if (BLEManager::getInstance().isInPairingMode()) {
-            logger->log("Button 2 clicked - Exit pairing mode");
             BLEManager::getInstance().exitPairingMode();
             return;
         }
 
-        logger->log("Button 2 clicked (count: %d)", clickCount);
         CounterApp::getInstance().increment();
     });
     button2->setOnLongPressStartCallback([this](int pinNumber) {
@@ -134,79 +151,4 @@ void BLEApp::setupBLE() {
         currentState = SystemState::ERROR;
         return;
     }
-}
-
-// ============================================================================
-// Display Update
-// ============================================================================
-
-void BLEApp::updateDisplay() {
-#if HAS_DISPLAY
-    LGFX& gfx = display->getGfx();
-    gfx.fillScreen(TFT_BLACK);
-    gfx.setTextColor(TFT_WHITE);
-
-    switch (currentState) {
-        case SystemState::INITIALIZING:
-            gfx.setTextSize(2);
-            gfx.setCursor(10, LCD_HEIGHT / 2 - 10);
-            gfx.print("Initializing...");
-            break;
-
-        case SystemState::PAIRING_MODE:
-            gfx.setTextSize(2);
-            gfx.setTextColor(TFT_YELLOW);
-            gfx.setCursor(10, 20);
-            gfx.print("PAIRING MODE");
-
-            gfx.setTextSize(1);
-            gfx.setTextColor(TFT_WHITE);
-            gfx.setCursor(10, 50);
-            gfx.printf("Password: %s", BLEManager::getInstance().getPairingPassword());
-
-            gfx.setCursor(10, 70);
-            gfx.print("Waiting for device...");
-            break;
-
-        case SystemState::NORMAL:
-            gfx.setTextSize(2);
-            gfx.setCursor(10, 20);
-            gfx.print("BLE DEMO");
-
-            gfx.setTextSize(2);
-            gfx.setCursor(10, 60);
-            gfx.printf("Count: %d", CounterApp::getInstance().getValue());
-
-            gfx.setTextSize(1);
-            gfx.setCursor(10, 120);
-            gfx.printf("Devices: %zu", CounterApp::getInstance().getRegisteredDeviceCount());
-
-            gfx.setCursor(10, 140);
-            if (CounterApp::getInstance().isConnectedDeviceNearby()) {
-                gfx.setTextColor(TFT_GREEN);
-                gfx.print("Device nearby!");
-            } else {
-                gfx.setTextColor(TFT_RED);
-                gfx.print("No device");
-            }
-
-            gfx.setTextColor(TFT_WHITE);
-            gfx.setCursor(10, 160);
-            if (BLEManager::getInstance().isDeviceConnected()) {
-                gfx.setTextColor(TFT_GREEN);
-                gfx.print("BLE Connected");
-            } else {
-                gfx.setTextColor(TFT_CYAN);
-                gfx.print("BLE Advertising");
-            }
-            break;
-
-        case SystemState::ERROR:
-            gfx.setTextSize(2);
-            gfx.setTextColor(TFT_RED);
-            gfx.setCursor(10, LCD_HEIGHT / 2 - 10);
-            gfx.print("ERROR!");
-            break;
-    }
-#endif
 }

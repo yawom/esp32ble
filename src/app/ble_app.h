@@ -7,6 +7,10 @@
 #include "input/ButtonHandler.h"
 #endif
 
+#if HAS_DISPLAY
+#include "../modules/CounterModule.h"
+#endif
+
 #include "../config.h"
 #include "../ble/ble_manager.h"
 #include "counter_app.h"
@@ -26,6 +30,7 @@ protected:
     void onLoop() override;
     void onStateUpdate(AppState currentState) override;
     const char* getWiFiAPName() override;
+    const char* getSystemTitle() override;
 
 #if HAS_BUTTONS
     void onAlwaysLoop() override;
@@ -37,16 +42,16 @@ private:
     ButtonHandler* button2;
 #endif
 
+#if HAS_DISPLAY
+    CounterModule* counterModule;
+#endif
+
     // Application state
     SystemState currentState;
-    unsigned long lastDisplayUpdate;
 
     // Setup helpers
     void setupButtons();
     void setupBLE();
-
-    // Display update
-    void updateDisplay();
 };
 
 #endif // BLE_APP_H
