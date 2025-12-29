@@ -26,12 +26,9 @@ const char* BLEApp::getWiFiAPName() {
 }
 
 void BLEApp::onSetup() {
-    logger->log("BLEApp::onSetup() called");
-    logger->log("Config pointer: %p", config);
 
     setupButtons();
 
-    // Verify config is valid before proceeding
     if (!config) {
         logger->log("FATAL: Config is null - cannot initialize");
         currentState = SystemState::ERROR;
