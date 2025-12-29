@@ -3,8 +3,6 @@
 #include "logger/Logger.h"
 #include "logger/SerialSink.h"
 
-// Global logger instance and serial sink
-// Logger *logger = new Logger();
 SerialSink serialSink;
 
 // ============================================================================
@@ -18,10 +16,8 @@ BLEApp *app = nullptr;
 // ============================================================================
 
 void setup() {
-    // Initialize serial port for logging
     Serial.begin(115200);
 
-    // Add serial sink to logger
     logger = new Logger();
     logger->addSink(&serialSink);
 

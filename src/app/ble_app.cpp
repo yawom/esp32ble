@@ -110,7 +110,7 @@ void BLEApp::setupButtons() {
     button1 = new ButtonHandler(PIN_BUTTON_1, true, true, LONG_PRESS_DURATION_MS, 250, BUTTON_DEBOUNCE_MS);
     button1->setOnClickCallback([this](int pinNumber, int clickCount) {
         logger->log("Button 1 clicked (count: %d)", clickCount);
-        CounterApp::getInstance().increment();
+        CounterApp::getInstance().decrement();
     });
     button1->setOnLongPressStartCallback([this](int pinNumber) {
         logger->log("Button 1 long press - Enter pairing mode");
@@ -122,7 +122,7 @@ void BLEApp::setupButtons() {
     button2 = new ButtonHandler(PIN_BUTTON_2, true, true, LONG_PRESS_DURATION_MS, 250, BUTTON_DEBOUNCE_MS);
     button2->setOnClickCallback([this](int pinNumber, int clickCount) {
         logger->log("Button 2 clicked (count: %d)", clickCount);
-        CounterApp::getInstance().decrement();
+        CounterApp::getInstance().increment();
     });
     button2->setOnLongPressStartCallback([this](int pinNumber) {
         logger->log("Button 2 long press - Clear all registered devices");
@@ -179,7 +179,7 @@ void BLEApp::updateDisplay() {
             gfx.setCursor(10, 20);
             gfx.print("BLE DEMO");
 
-            gfx.setTextSize(4);
+            gfx.setTextSize(2);
             gfx.setCursor(10, 60);
             gfx.printf("Count: %d", CounterApp::getInstance().getValue());
 
